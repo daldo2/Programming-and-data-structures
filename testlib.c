@@ -1,303 +1,313 @@
 #include "primlib.h"
 #include <math.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
-#define NUMBER_OF_POLES 5
-#define NUMBER_OF_DISCS 37
+typedef struct {
+	int kind;
+	int rotation;
+	int x;
+	int y;
+} Piece;
 
-#define DISTANCE (gfx_screenWidth() / (NUMBER_OF_POLES * 4 + 2))
-#define DISTANCE_OF_POLES (DISTANCE * 4)
-#define RADIUS (DISTANCE / 4)
-#define DISK_HEIGHT (START_OF_PYRAMID - TOP_OF_PYRAMID) / (NUMBER_OF_DISCS + 1)
-#define DISK_RADIUS ((DISTANCE_OF_POLES / 2.2) / NUMBER_OF_DISCS)
-#define WIDTH (DISK_RADIUS / 2)
-#define START_OF_PYRAMID (gfx_screenHeight() * 9 / 10)
-#define TOP_OF_PYRAMID (gfx_screenHeight() * 6 / 10)
-#define SPEED (DISTANCE/20)
-#define DELAY 6
+typedef struct {
+	int row;
+	int col;
+} Pivot;
 
-void fill_array(int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS]);
-void draw_poles();
-void draw_discs(int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS]);
-int check_what_pressed(int pressed[2]);
-int is_valid_pressed(int pressed[2]);
-int swap_pole(int pressed[2], int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS]);
-void animate_swap(int from, int to, int disk, int source_index,
-				  int target_index,
-				  int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS]);
-void render_frame(int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS], int disk,
-				  int x, int y);
-void reset_pressed(int pressed[2]);
-int win(int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS]);
-void endScreen(int pressed[2]);
+#define WIDTH 18
+#define HEIGHT 33
+#define START_OF_BOARD_X (gfx_screenWidth() * 2 / 5) + 1
+#define END_OF_BOARD_X (gfx_screenWidth() * 3 / 5)
+#define START_OF_BOARD_Y 200
+#define END_OF_BOARD_Y (START_OF_BOARD_Y + SIZE * HEIGHT)
+
+#define SIZE (gfx_screenWidth() / 5 / WIDTH)
+#define START_POSSITION (START_OF_BOARD_X + SIZE * 5)
+#define FALL_SPEED 30
+#define DELAY 10
+
+int getKey();
+void movement(int key, Piece* p, Piece* nextP, int gameField[WIDTH][HEIGHT]);
+void drawNextPiece(Piece p);
+void drawBoard(int gameField[WIDTH][HEIGHT]);
+void drawPiece(Piece p);
+void endGame();
+int isValidPosition(Piece p, int gameField[WIDTH][HEIGHT]);
+void lockPiece(Piece* p, Piece* nextP, int gameField[WIDTH][HEIGHT]);
+void clearLines(int gameField[WIDTH][HEIGHT]);
+Pivot getPivotPosition(Piece p);
+
+char pieces[7][4][4][4] = {
+	{{{2, 1, 0, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{2, 1, 0, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{2, 1, 0, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{2, 1, 0, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}},
+	{{{1, 2, 1, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 0, 0, 0}, {2, 0, 0, 0}, {1, 0, 0, 0}, {1, 0, 0, 0}},
+	 {{1, 1, 2, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 0, 0, 0}, {1, 0, 0, 0}, {2, 0, 0, 0}, {1, 0, 0, 0}}},
+	{{{1, 0, 0, 0}, {2, 0, 0, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 2, 1, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 1, 0, 0}, {0, 2, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}},
+	 {{0, 0, 1, 0}, {1, 2, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}},
+	{{{0, 1, 0, 0}, {0, 2, 0, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 0, 0, 0}, {1, 2, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 1, 0, 0}, {2, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 2, 1, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}},
+	{{{0, 1, 0, 0}, {2, 1, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 2, 0, 0}, {0, 1, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{0, 1, 0, 0}, {1, 2, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 1, 0, 0}, {0, 2, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}},
+	{{{1, 0, 0, 0}, {2, 1, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}},
+	 {{0, 2, 1, 0}, {1, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 0, 0, 0}, {1, 2, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}},
+	 {{0, 1, 1, 0}, {1, 2, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}},
+	{{{1, 0, 0, 0}, {2, 1, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{1, 2, 1, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+	 {{0, 1, 0, 0}, {1, 2, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}},
+	 {{0, 1, 0, 0}, {1, 2, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}}};
 
 int main(int argc, char* argv[])
 {
 	if (gfx_init()) {
 		exit(3);
 	}
-	int pressed[2] = {-1, -1};
-	int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS];
-	fill_array(myArray);
 
+	srand(time(NULL));
+	int gameField[WIDTH][HEIGHT] = {0};
+	int keyPressed;
+	int fallCounter = 0;
+	Piece currentPiece = {rand() % 7, rand() % 4, 4, 0};
+	Piece nextPiece = {rand() % 7, rand() % 4, 0, 0};
 	do {
+		keyPressed = getKey();
 		gfx_filledRect(0, 0, gfx_screenWidth() - 1, gfx_screenHeight() - 1,
 					   BLACK);
-		if (win(myArray) == 0) {
-			endScreen(pressed);
-			return 0;
+		fallCounter++;
+		if (fallCounter >= FALL_SPEED) {
+			fallCounter = 0;
+			Piece testPiece = currentPiece;
+			testPiece.y += 1;
+			if (isValidPosition(testPiece, gameField)) {
+				currentPiece = testPiece;
+			}
+			else {
+				lockPiece(&currentPiece, &nextPiece, gameField);
+				if (!isValidPosition(currentPiece, gameField)) {
+					break;
+				}
+			}
 		}
-		if (is_valid_pressed(pressed) == 0) {
-			swap_pole(pressed, myArray);
+
+		drawBoard(gameField);
+		movement(keyPressed, &currentPiece, &nextPiece, gameField);
+		if (!isValidPosition(currentPiece, gameField)) {
+			break;
 		}
-		draw_poles();
-		draw_discs(myArray);
+		drawPiece(currentPiece);
+		drawNextPiece(nextPiece);
 		gfx_updateScreen();
 		SDL_Delay(DELAY);
-	} while (check_what_pressed(pressed) != 1);
+	} while (keyPressed != 5);
+	endGame();
+	return 0;
 }
 
-void fill_array(int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS])
+int getKey()
 {
-	for (int i = 0; i < NUMBER_OF_DISCS; i++) {
-		myArray[0][i] = NUMBER_OF_DISCS - i;
-	}
-	for (int j = 1; j <= NUMBER_OF_POLES - 1; j++)
-		for (int i = 0; i < NUMBER_OF_DISCS; i++) {
-			myArray[j][i] = 0;
+	int keyList[6] = {SDLK_LEFT,  SDLK_RIGHT,  SDLK_DOWN,
+					  SDLK_SPACE, SDLK_ESCAPE, SDLK_RETURN};
+	int currentKey = gfx_pollkey();
+	for (int i = 0; i < 6; i++) {
+		if (keyList[i] == currentKey) {
+			return i + 1;
 		}
+	}
+	return 0;
 }
 
-void draw_poles()
+void movement(int key, Piece* p, Piece* nextP, int gameField[WIDTH][HEIGHT])
 {
-	gfx_filledRect(0, START_OF_PYRAMID, gfx_screenWidth() - 1,
-				   gfx_screenHeight() - 1, GREEN);
-	for (int i = 1; i <= NUMBER_OF_POLES; i++) {
-		gfx_filledRect(i * DISTANCE_OF_POLES - DISTANCE - WIDTH, TOP_OF_PYRAMID,
-					   i * DISTANCE_OF_POLES - DISTANCE + WIDTH,
-					   START_OF_PYRAMID, YELLOW);
+	Piece testPiece = *p;
+	switch (key) {
+	case 1:
+		testPiece.x -= 1;
+		break;
+	case 2:
+		testPiece.x += 1;
+		break;
+	case 3:
+		while (isValidPosition(testPiece, gameField)) {
+			testPiece.y += 1;
+		}
+		testPiece.y -= 1;
+		*p = testPiece;
+		lockPiece(p, nextP, gameField);
+		return;
+	case 4:
+		testPiece.rotation = (testPiece.rotation + 1) % 4;
+		break;
+	}
+
+	if (isValidPosition(testPiece, gameField)) {
+		*p = testPiece;
 	}
 }
 
-void draw_discs(int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS])
+Pivot getPivotPosition(Piece p)
 {
+	Pivot pivot = {0, 0};
+	for (int r = 0; r < 4; r++) {
+		for (int c = 0; c < 4; c++) {
+			if (pieces[p.kind][p.rotation][r][c] == 2) {
+				pivot.row = r;
+				pivot.col = c;
+				return pivot;
+			}
+		}
+	}
+	return pivot;
+}
 
-	for (int j = 0; j < NUMBER_OF_POLES; j++) {
-		int disk_number = 0;
+int isValidPosition(Piece p, int gameField[WIDTH][HEIGHT])
+{
+	Pivot pivot = getPivotPosition(p);
 
-		for (int i = 0; i < NUMBER_OF_DISCS; i++) {
-			int disk = myArray[j][i];
+	for (int row = 0; row < 4; row++) {
+		for (int col = 0; col < 4; col++) {
+			if (pieces[p.kind][p.rotation][row][col] != 0) {
+				int boardX = p.x + col - pivot.col;
+				int boardY = p.y + row - pivot.row;
 
-			if (disk != 0) {
-				disk_number++;
-				gfx_filledRect(
-					DISTANCE_OF_POLES - DISTANCE - disk * DISK_RADIUS +
-						DISTANCE_OF_POLES * j,
-					START_OF_PYRAMID - disk_number * DISK_HEIGHT + DISK_HEIGHT,
-					DISTANCE_OF_POLES - DISTANCE + disk * DISK_RADIUS +
-						DISTANCE_OF_POLES * j,
-					START_OF_PYRAMID - disk_number * DISK_HEIGHT + 1, RED);
+				if (boardX < 0 || boardX >= WIDTH || boardY >= HEIGHT) {
+					return 0;
+				}
+				if (boardY >= 0 && gameField[boardX][boardY] != 0) {
+					return 0;
+				}
+			}
+		}
+	}
+	return 1;
+}
 
-				gfx_rect(DISTANCE_OF_POLES - DISTANCE - disk * DISK_RADIUS +
-							 DISTANCE_OF_POLES * j ,
-						 START_OF_PYRAMID - disk_number * DISK_HEIGHT +
-							 DISK_HEIGHT + 1,
-						 DISTANCE_OF_POLES - DISTANCE + disk * DISK_RADIUS +
-							 DISTANCE_OF_POLES * j + 1,
-						 START_OF_PYRAMID - disk_number * DISK_HEIGHT , BLACK);
+void lockPiece(Piece* p, Piece* nextP, int gameField[WIDTH][HEIGHT])
+{
+	Pivot pivot = getPivotPosition(*p);
+	for (int row = 0; row < 4; row++) {
+		for (int col = 0; col < 4; col++) {
+			if (pieces[p->kind][p->rotation][row][col] != 0) {
+				int boardX = p->x + col - pivot.col;
+				int boardY = p->y + row - pivot.row;
+				if (boardY >= 0 && boardX >= 0 && boardX < WIDTH) {
+					gameField[boardX][boardY] = 1;
+				}
+			}
+		}
+	}
+
+	clearLines(gameField);
+
+	*p = *nextP;
+	p->x = 4;
+	p->y = 0;
+
+	nextP->kind = rand() % 7;
+	nextP->rotation = rand() % 4;
+}
+
+void clearLines(int gameField[WIDTH][HEIGHT])
+{
+	for (int y = HEIGHT - 1; y >= 0; y--) {
+		int isFull = 1;
+		for (int x = 0; x < WIDTH; x++) {
+			if (gameField[x][y] == 0) {
+				isFull = 0;
+				break;
+			}
+		}
+		if (isFull) {
+			for (int shiftY = y; shiftY > 0; shiftY--) {
+				for (int x = 0; x < WIDTH; x++) {
+					gameField[x][shiftY] = gameField[x][shiftY - 1];
+				}
+			}
+			for (int x = 0; x < WIDTH; x++) {
+				gameField[x][0] = 0;
+			}
+			y++;
+		}
+	}
+}
+
+void drawNextPiece(Piece p)
+{
+	Pivot pivot = getPivotPosition(p);
+	int startX = START_OF_BOARD_X + SIZE * WIDTH + 1 + SIZE * 2;
+	int startY = START_OF_BOARD_Y;
+
+	for (int row = 0; row < 4; row++) {
+		for (int col = 0; col < 4; col++) {
+			if (pieces[p.kind][p.rotation][row][col] != 0) {
+				int px = startX + (col - pivot.col) * SIZE;
+				int py = startY + (row - pivot.row) * SIZE;
+				enum color c = (pieces[p.kind][p.rotation][row][col] == 2)
+								   ? YELLOW
+								   : GREEN;
+				gfx_filledRect(px, py, px + SIZE, py + SIZE, c);
 			}
 		}
 	}
 }
 
-int is_valid_pressed(int pressed[2])
+void drawBoard(int gameField[WIDTH][HEIGHT])
 {
-	if (pressed[0] > NUMBER_OF_POLES) {
-		reset_pressed(pressed);
-		return 1;
-	}
-	else if (pressed[1] > NUMBER_OF_POLES) {
-		reset_pressed(pressed);
-		return 1;
-	}
-	else if (pressed[0] == -1 || pressed[1] == -1) {
-		return 1;
-	}
-	else {
-		return 0;
-	}
-}
+	gfx_line(START_OF_BOARD_X - 1, START_OF_BOARD_Y, START_OF_BOARD_X - 1,
+			 END_OF_BOARD_Y, CYAN);
+	gfx_line(START_OF_BOARD_X + SIZE * WIDTH + 1 , START_OF_BOARD_Y,START_OF_BOARD_X + SIZE * WIDTH + 1,
+			 END_OF_BOARD_Y, CYAN);
 
-int swap_pole(int pressed[2], int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS])
-{
-	int from = pressed[0] - 1;
-	int to = pressed[1] - 1;
-	int first_index = 0;
-	int second_index = 0;
-
-	int smallest = NUMBER_OF_DISCS + 1;
-	for (int i = 0; i < NUMBER_OF_DISCS; i++) {
-		int current = myArray[from][i];
-		if (current <= smallest && current > 0) {
-			smallest = current;
-			first_index = i;
+	for (int x = 0; x < WIDTH; x++) {
+		for (int y = 0; y < HEIGHT; y++) {
+			if (gameField[x][y] != 0) {
+				int px = START_OF_BOARD_X + x * SIZE;
+				int py = START_OF_BOARD_Y + y * SIZE;
+				gfx_filledRect(px, py, px + SIZE, py + SIZE, RED);
+			}
 		}
 	}
-	if (smallest == NUMBER_OF_DISCS + 1) {
-		return 1;
-	}
-
-	for (int i = 0; i < NUMBER_OF_DISCS; i++) {
-		int current = myArray[to][i];
-		if (current == 0) {
-			break;
-		}
-		if (current <= smallest) {
-			return 1;
-		}
-		second_index++;
-	}
-
-	int swap_from = myArray[from][first_index];
-	myArray[from][first_index] = 0;
-
-	animate_swap(pressed[0], pressed[1], smallest, first_index, second_index,
-				 myArray);
-
-	myArray[to][second_index] = swap_from;
-	reset_pressed(pressed);
-	return 0;
 }
 
-void animate_swap(int from, int to, int disk, int source_index,
-				  int target_index,
-				  int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS])
+void drawPiece(Piece p)
 {
-	int start_x = from * DISTANCE_OF_POLES - DISTANCE;
-	int target_x = to * DISTANCE_OF_POLES - DISTANCE;
-	int current_x = start_x;
-	int current_y = START_OF_PYRAMID - (source_index + 1) * DISK_HEIGHT;
-	int end_y = START_OF_PYRAMID - (target_index + 1) * DISK_HEIGHT;
-	int peak_y = TOP_OF_PYRAMID - 3 * DISK_HEIGHT;
+	Pivot pivot = getPivotPosition(p);
 
-	while (current_y > peak_y) {
-		current_y -= SPEED;
-		if (current_y < peak_y) {
-			current_y = peak_y;
-		}
-		render_frame(myArray, disk, current_x, current_y);
-	}
-
-	int direction_x = (target_x > start_x) ? SPEED : -SPEED;
-	while (abs(target_x - current_x) > SPEED) {
-		current_x += direction_x;
-		render_frame(myArray, disk, current_x, current_y);
-	}
-	current_x = target_x;
-	render_frame(myArray, disk, current_x, current_y);
-
-	while (current_y < end_y) {
-		current_y += SPEED;
-		if (current_y > end_y)
-			current_y = end_y;
-		render_frame(myArray, disk, current_x, current_y);
-	}
-}
-
-void render_frame(int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS], int disk,
-				  int x, int y)
-{
-	gfx_filledRect(0, 0, gfx_screenWidth() - 1, gfx_screenHeight() - 1, BLACK);
-	draw_poles();
-	draw_discs(myArray);
-
-	gfx_filledRect(x - disk * DISK_RADIUS, y + DISK_HEIGHT,
-				   x + disk * DISK_RADIUS, y + 1, RED);
-	gfx_rect(x - disk * DISK_RADIUS, y + DISK_HEIGHT + 1, x + disk * DISK_RADIUS + 1, y,
-			 BLACK);
-
-	gfx_updateScreen();
-	SDL_Delay(DELAY);
-}
-
-void reset_pressed(int pressed[2])
-{
-	pressed[0] = -1;
-	pressed[1] = -1;
-}
-
-int win(int myArray[NUMBER_OF_POLES][NUMBER_OF_DISCS])
-{
-	for (int i = 0; i < NUMBER_OF_DISCS; i++) {
-		if (myArray[NUMBER_OF_POLES - 1][i] == 0) {
-			return 1;
+	for (int row = 0; row < 4; row++) {
+		for (int col = 0; col < 4; col++) {
+			if (pieces[p.kind][p.rotation][row][col] != 0) {
+				int px = START_OF_BOARD_X + (p.x + col - pivot.col) * SIZE;
+				int py = START_OF_BOARD_Y + (p.y + row - pivot.row) * SIZE;
+				enum color c = (pieces[p.kind][p.rotation][row][col] == 2)
+								   ? YELLOW
+								   : GREEN;
+				gfx_filledRect(px, py, px + SIZE, py + SIZE, c);
+			}
 		}
 	}
-	return 0;
 }
 
-void endScreen(int pressed[2])
+void endGame()
 {
+	int keyPressed;
 	do {
 		gfx_filledRect(0, 0, gfx_screenWidth() - 1, gfx_screenHeight() - 1,
 					   BLACK);
-		gfx_textout(gfx_screenWidth() * 9 / 20, gfx_screenHeight() / 2,
-					"Congratulations", CYAN);
+		gfx_textout(gfx_screenWidth() / 2 - 40, gfx_screenHeight() / 2,
+					"You lost", YELLOW);
+		keyPressed = getKey();
 		gfx_updateScreen();
-		usleep(8000);
-	} while (check_what_pressed(pressed) != 1);
-}
-
-int check_what_pressed(int pressed[2])
-{
-	int index = 0;
-	if (pressed[0] != -1 && pressed[1] != -1) {
-		reset_pressed(pressed);
-	}
-	else if (pressed[0] != -1) {
-		index = 1;
-	}
-
-	switch (gfx_pollkey()) {
-	case SDLK_1:
-		pressed[index] = 1;
-		break;
-	case SDLK_2:
-		pressed[index] = 2;
-		break;
-	case SDLK_3:
-		pressed[index] = 3;
-		break;
-	case SDLK_4:
-		pressed[index] = 4;
-		break;
-	case SDLK_5:
-		pressed[index] = 5;
-		break;
-	case SDLK_6:
-		pressed[index] = 6;
-		break;
-	case SDLK_7:
-		pressed[index] = 7;
-		break;
-	case SDLK_8:
-		pressed[index] = 8;
-		break;
-	case SDLK_9:
-		pressed[index] = 9;
-		break;
-	case SDLK_0:
-		pressed[index] = 10;
-		break;
-	case SDLK_ESCAPE:
-		return 1;
-		break;
-	case SDLK_RETURN:
-		return 1;
-		break;
-	default:
-		break;
-	}
-	return 0;
+		SDL_Delay(DELAY);
+	} while (keyPressed != 5 && keyPressed != 6);
 }
