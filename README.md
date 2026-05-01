@@ -14,3 +14,4 @@ These projects depend on the `primlib` graphics library. Ensure you have the nec
 Navigate to a project folder and run:
 gcc main.c ../primlib/primlib.c -o program_name -lSDL2 -lSDL2_gfx -lm
 <img width="1285" height="748" alt="image" src="https://github.com/user-attachments/assets/735b9101-2464-488a-a7a3-2980a63643c6" />
+<img width="1198" height="728" alt="image" src="https://github.com/user-attachments/assets/1973fd48-ac58-4c83-940f-9ebb6300ac46" />
