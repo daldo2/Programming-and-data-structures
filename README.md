@@ -1,17 +1,35 @@
-# Programming and Data Structures 
+# Programming and Data Structures
 
-A collection of C programming projects focusing on algorithms and graphics logic using the `primlib` library.
+A collection of C programming projects focusing on algorithms, graphics logic, and robust memory management.
 
 ## Projects
-*   **Tower of Hanoi**: Implementation of the recursive puzzle solver.
-*   **Rotating Polygon**: Demonstration of 2D geometry transformations and rendering.
-*   **Tetris**: Implementation of the classic game logic and collision detection.
 
-## Setup
-These projects depend on the `primlib` graphics library. Ensure you have the necessary dependencies installed (e.g., SDL2).
+### Octal Text Processor
+A utility for processing and summing large octal numbers from standard input.
+* **Memory Safety**: Implements manual heap management with `malloc`, `realloc`, and `free`.
+* **Error Injection**: Uses a custom `rand_malloc` wrapper to simulate and handle memory allocation failures.
+* **Input Handling**: Features whitespace trimming and dynamic line buffering.
 
-### Compilation
-Navigate to a project folder and run:
+### Graphics Projects
+Interactive projects developed using the `primlib` library:
+* **Tetris**: Game state management, piece rotation, and line clearing logic.
+* **Rotating Polygon**: Matrix-based transformations for 2D shapes.
+* **Tower of Hanoi**: Recursive algorithm visualization.
+
+---
+
+## Setup & Compilation
+
+### Dependencies
+* Graphics projects require **SDL2** and **SDL2_gfx**.
+* Standard projects require a **GCC** compiler.
+
+### Compiling Octal Text Processor
+Navigate to `/octal-processor` and execute:
+gcc main.c rand_malloc.c -o octal_processor
+
+### Compiling Graphics Projects
+Navigate to the specific project directory and execute:
 gcc main.c ../primlib/primlib.c -o program_name -lSDL2 -lSDL2_gfx -lm
 
 <img width="1401" height="818" alt="image" src="https://github.com/user-attachments/assets/4594463f-4d62-471a-bd27-103554e26030" />
