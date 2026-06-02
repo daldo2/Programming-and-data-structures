@@ -4,6 +4,14 @@ A collection of C programming projects focusing on algorithms, graphics logic, a
 
 ## Projects
 
+### Banking System
+
+A file-based account management system utilizing binary data storage and record linking.
+
+* **Data Persistence**: Uses `data.bin` to store `Account` structures, including names, addresses, and validated PESEL numbers.
+* **Relational Linking**: Links `InsuranceRecord` entries to specific accounts using account numbers as foreign keys.
+* **Binary File I/O**: High-performance data access using `fseek`, `ftell`, and `rewind` for precise record updates.
+
 ### Octal Text Processor
 A utility for processing and summing large octal numbers from standard input.
 * **Memory Safety**: Implements manual heap management with `malloc`, `realloc`, and `free`.
@@ -23,6 +31,13 @@ Interactive projects developed using the `primlib` library:
 ### Dependencies
 * Graphics projects require **SDL2** and **SDL2_gfx**.
 * Standard projects require a **GCC** compiler.
+
+### Compiling Banking System
+
+Navigate to `/banking-system` and execute:
+
+gcc banking_system.c -o banking_system
+
 
 ### Compiling Octal Text Processor
 Navigate to `/octal-processor` and execute:
